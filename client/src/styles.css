@@ -564,3 +564,30 @@ td strong {
   gap: 10px;
   align-items: center;
 }
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 500px;
+  margin-top: 20px;
+}
+
+.account-form label {
+  font-weight: 600;
+}
+
+.account-form input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.account-form button {
+  margin-top: 10px;
+}
+
+.success-message {
+  color: #16803c;
+  font-weight: 600;
+}

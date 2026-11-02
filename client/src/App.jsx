@@ -115,7 +115,91 @@ function StatusBadge({ status }) {
   return <span className={`badge ${status}`}>{(status || 'unknown').replace('_', ' ')}</span>;
 }
 
-function AdminDashboard({ listings, stats, users, records, refresh, act, error, onLogout }) {
+function AccountSettings({ user, onUpdated }) {
+  const [email, setEmail] = useState(user.email || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setErr('');
+
+    if (!currentPassword) {
+      setErr('Please enter your current password.');
+      return;
+    }
+    if (newPassword && newPassword !== confirmPassword) {
+      setErr('New passwords do not match.');
+      return;
+    }
+    if (newPassword && newPassword.length < 8) {
+      setErr('New password must be at least 8 characters.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const body = { currentPassword, email: email.trim() };
+      if (newPassword) body.newPassword = newPassword;
+      const data = await api('/auth/admin-credentials', { method: 'PATCH', body });
+      localStorage.setItem('token', data.token);
+      onUpdated(data.user);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setMessage('Admin credentials updated successfully.');
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Admin Account Settings</h2>
+          <p>Update your administrator email and password.</p>
+        </div>
+      </div>
+      <form onSubmit={submit} className="account-form">
+        <label htmlFor="admin-email">Admin Email</label>
+        <input id="admin-email" type="email" value={email}
+          onChange={(e) => setEmail(e.target.value)} required />
+
+        <label htmlFor="current-admin-password">Current Password</label>
+        <input id="current-admin-password" type="password" value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Enter current password" required autoComplete="current-password" />
+
+        <label htmlFor="new-admin-password">New Password</label>
+        <input id="new-admin-password" type="password" value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Leave blank to keep current password" minLength={8}
+          autoComplete="new-password" />
+
+        <label htmlFor="confirm-admin-password">Confirm New Password</label>
+        <input id="confirm-admin-password" type="password" value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Confirm new password" autoComplete="new-password" />
+
+        {err && <p className="err">{err}</p>}
+        {message && <p className="success-message">{message}</p>}
+        <button type="submit" disabled={busy}>
+          {busy ? 'Saving...' : 'Save Changes'}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function AdminDashboard({ listings, stats, users, records, refresh, act, error, onLogout, user, onUpdated }) {
   const [section, setSection] = useState('overview');
   const [userBusy, setUserBusy] = useState('');
 
@@ -142,7 +226,8 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
     ['overview', 'Overview', '▦'],
     ['donations', 'Donations', '♧'],
     ['users', 'Users', '♙'],
-    ['history', 'Delivery History', '◷']
+    ['history', 'Delivery History', '◷'],
+    ['settings', 'Account Settings', '⚙']
   ];
 
   return (
@@ -300,6 +385,10 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
             </div>
           </section>
         )}
+
+        {section === 'settings' && (
+          <AccountSettings user={user} onUpdated={onUpdated} />
+        )}
       </main>
     </div>
   );
@@ -441,6 +530,8 @@ export default function App() {
         act={act}
         error={err}
         onLogout={logout}
+        user={user}
+        onUpdated={setUser}
       />
     );
   }
