@@ -1,13 +1,19 @@
 
 import { Router } from 'express';
 import crypto from 'crypto';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import User from '../models/User.js';
 import { protect, authorize, signToken } from '../middleware/auth.js';
 
 const router = Router();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 const publicUser = (u) => ({
   id: u._id,
@@ -151,26 +157,26 @@ router.post('/forgot-password/request-otp', async (req, res, next) => {
 
     await user.save();
 
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL,
-      to: [user.email],
-      subject: 'Your Food Rescue password reset code',
-      text: `Your password reset OTP is ${otp}. It expires in 5 minutes. If you did not request this, you can ignore this email.`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px">
-          <h2>Reset your Food Rescue password</h2>
-          <p>Use the following verification code to reset your password:</p>
-          <div style="font-size:32px;font-weight:bold;letter-spacing:8px;padding:16px 0">
-            ${otp}
+     try {
+      await transporter.sendMail({
+        from: `"Food Rescue" <${process.env.GMAIL_USER}>`,
+        to: user.email,
+        subject: 'Your Food Rescue password reset code',
+        text: `Your password reset OTP is ${otp}. It expires in 5 minutes. If you did not request this, you can ignore this email.`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px">
+            <h2>Reset your Food Rescue password</h2>
+            <p>Use the following verification code to reset your password:</p>
+            <div style="font-size:32px;font-weight:bold;letter-spacing:8px;padding:16px 0">
+              ${otp}
+            </div>
+            <p>This code expires in <strong>5 minutes</strong>.</p>
+            <p>If you did not request a password reset, you can ignore this email.</p>
           </div>
-          <p>This code expires in <strong>5 minutes</strong>.</p>
-          <p>If you did not request a password reset, you can ignore this email.</p>
-        </div>
-      `,
-    });
-
-    if (error) {
-      console.error('Resend email error:', error);
+        `,
+      });
+    } catch (error) {
+      console.error('Gmail email error:', error.message);
 
       clearResetData(user);
       await user.save();
