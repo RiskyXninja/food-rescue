@@ -139,12 +139,12 @@ router.post('/forgot-password/request-otp', async (req, res, next) => {
       return res.json({ message: GENERIC_OTP_MESSAGE });
     }
 
-    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
-      console.error('Resend environment variables are missing.');
-      return res.status(503).json({
-        message: 'Email service is temporarily unavailable. Please try again later.',
-      });
-    }
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  console.error('Gmail environment variables are missing.');
+  return res.status(503).json({
+    message: 'Email service is temporarily unavailable. Please try again later.',
+  });
+}
 
     const otp = crypto.randomInt(100000, 1000000).toString();
 
