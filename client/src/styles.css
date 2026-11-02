@@ -837,6 +837,135 @@ body {
   color: var(--text-color);
 }
 
+
+/* Liquid glass controls and adaptive device theme */
+:root {
+  color-scheme: light;
+  --ink: #201b18;
+  --muted-ink: #857b72;
+  --cream: #f7f4ef;
+  --line: rgba(51, 35, 27, .13);
+  --glass-surface: rgba(255, 255, 255, .68);
+  --glass-border: rgba(255, 255, 255, .78);
+  --control-glow: rgba(227, 62, 43, .42);
+  --control-fill: linear-gradient(145deg, rgba(255,255,255,.30), transparent 58%), linear-gradient(135deg, #f06a53, #c92f25);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root { color-scheme: light; --bg-color: #f4f7f5; --text-color: #1a1a1a; --card-color: #f5f5f5; --border-color: #e5e5e5; }
+  :root {
+    color-scheme: dark;
+    --ink: #f2eee9;
+    --muted-ink: #b9afa7;
+    --cream: #141614;
+    --line: rgba(238, 231, 223, .16);
+    --glass-surface: rgba(37, 39, 38, .70);
+    --glass-border: rgba(255, 255, 255, .17);
+    --control-glow: rgba(255, 136, 113, .48);
+    --control-fill: linear-gradient(145deg, rgba(255,255,255,.24), transparent 58%), linear-gradient(135deg, #ed735d, #a92722);
+    --bg-color: #141614;
+    --text-color: #f2eee9;
+    --card-color: #242625;
+    --border-color: #424442;
+  }
+
+  body, .admin-layout {
+    color: var(--ink);
+    background: radial-gradient(ellipse at 10% 0%, #463128 0, transparent 43%), var(--cream);
+  }
+
+  .admin-main, .wrap.member-layout { color: var(--ink); }
+  .admin-header h1, .member-brand h1, .item h3, .panel-heading h2,
+  .donor-form h2, .account-form h2, .stat-card strong { color: var(--ink); }
+  .stat-card, .panel, .card, .account-form, .donor-form, .item.card {
+    color: var(--ink);
+    background: var(--glass-surface);
+    border-color: var(--glass-border);
+    box-shadow: 0 16px 42px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.12);
+  }
+  input, select { color: var(--ink); background: rgba(28,30,29,.8); border-color: var(--line); }
+  input:focus, select:focus { background: #252827; }
+  input::placeholder { color: #aaa19a; }
+  td { color: #d2c9c1; border-color: var(--line); }
+  th, .muted, .stat-card p { color: var(--muted-ink); }
+  tbody tr:hover td { background: rgba(255,255,255,.06); }
+  .refresh-btn, .ghost { color: var(--ink); background: rgba(255,255,255,.08); border-color: var(--line); }
+  .refresh-btn:hover, .ghost:hover { color: #fff; background: rgba(255,255,255,.15); }
+  .text-btn { color: #ffc0b2; background: rgba(227,62,43,.18); }
+  .text-btn:hover { background: #b93b30; }
+  .danger-btn { color: #ffc0b8; background: rgba(190,51,41,.2); }
+  .danger-btn:hover { color: #fff; background: #9e2f28; }
+  .badge.pending { background: rgba(176,128,38,.22); color: #f4d995; }
+  .badge.approved, .badge.active, .badge.delivered { background: rgba(50,138,83,.23); color: #a7e7b8; }
+  .badge.claimed, .badge.picked_up { background: rgba(131,92,164,.26); color: #dec3f3; }
+  .badge.rejected, .badge.cancelled, .badge.inactive { background: rgba(178,66,55,.25); color: #ffb9ae; }
+  .role-chip, .role-label { color: #ffc0b2; background: rgba(190,51,41,.2); }
+  .location-note, .consent-row { color: var(--muted-ink); }
+  .empty-state { color: var(--ink); background: rgba(255,255,255,.06); border-color: var(--glass-border); }
+  .empty-state p { color: var(--muted-ink); }
+}
+
+button, .nav-button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.42);
+  background: var(--control-fill);
+  box-shadow: 0 7px 20px rgba(181,55,39,.20), inset 0 1px rgba(255,255,255,.42);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+  transition: transform .18s ease, box-shadow .2s ease, filter .2s ease, background .2s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button:hover { filter: brightness(1.06); box-shadow: 0 9px 24px rgba(181,55,39,.26), inset 0 1px rgba(255,255,255,.48); }
+button:active {
+  transform: scale(.96);
+  filter: brightness(1.18);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--control-glow) 28%, transparent), 0 0 26px 7px var(--control-glow), inset 0 1px rgba(255,255,255,.58);
+}
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid var(--control-glow);
+  outline-offset: 3px;
+}
+.nav-button { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.09); box-shadow: inset 0 1px rgba(255,255,255,.12); }
+.nav-button:hover, .nav-button.selected { background: linear-gradient(135deg, rgba(255,255,255,.19), rgba(227,62,43,.35)); }
+.ghost, .refresh-btn, .text-btn, .danger-btn { border: 1px solid var(--glass-border); }
+.badge, .role-chip, .role-label, .location-note {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+.location-note { display: inline-flex; align-items: center; padding: 7px 13px; background: var(--glass-surface); }
+.consent-row input[type="checkbox"] {
+  appearance: none;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 25px;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,.54);
+  border-radius: 999px;
+  background: rgba(125,130,126,.30);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  cursor: pointer;
+  transition: background .22s ease, box-shadow .22s ease;
+}
+.consent-row input[type="checkbox"]::before {
+  content: "";
+  display: block;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #e8e2dc);
+  box-shadow: 0 2px 5px rgba(0,0,0,.2);
+  transition: transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.consent-row input[type="checkbox"]:checked { background: linear-gradient(135deg,#f06a53,#c92f25); box-shadow: 0 0 14px var(--control-glow); }
+.consent-row input[type="checkbox"]:checked::before { transform: translateX(17px); }
+.consent-row input[type="checkbox"]:active { box-shadow: 0 0 0 4px color-mix(in srgb, var(--control-glow) 36%, transparent); }
+
+@media (prefers-reduced-transparency: reduce) {
+  button, .nav-button, .badge, .role-chip, .role-label, .location-note,
+  .stat-card, .panel, .card, .account-form, .donor-form { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
