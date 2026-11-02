@@ -36,7 +36,10 @@ function validImageData(value) {
 function listingView(listing, user) {
   const data = listing.toObject ? listing.toObject() : { ...listing };
   const donorOwns = String(data.donor?._id || data.donor) === String(user._id);
-  if (!donorOwns && !data.showPhone) delete data.donorPhone;
+  const volunteerCanCoordinate = user.role === 'volunteer' && (
+    data.status === 'approved' || String(data.volunteer?._id || data.volunteer) === String(user._id)
+  );
+  if (!donorOwns && !volunteerCanCoordinate && !data.showPhone) delete data.donorPhone;
   return data;
 }
 
@@ -53,6 +56,15 @@ router.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Admin cleanup removes only listings that are already finished or cancelled.
+router.delete('/cleanup', authorize('admin'), async (req, res, next) => {
+  try {
+    const result = await FoodListing.deleteMany({ status: { $in: ['delivered', 'rejected', 'cancelled'] } });
+    req.app.get('io').emit('listing:updated', { removed: result.deletedCount });
+    res.json({ deletedCount: result.deletedCount });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const l = await FoodListing.findById(req.params.id).populate(populate);
@@ -65,14 +77,14 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', authorize('donor'), async (req, res, next) => {
   try {
     const { title, description, category, quantity, unit, pickupAddress, expiresAt,
-      donorPhone, showPhone, imageData, location } = req.body;
+      donorPhone, imageData, location } = req.body;
     const phoneDigits = String(donorPhone || '').replace(/\D/g, '');
     if (donorPhone && (!/^\+?[\d\s().-]{7,24}$/.test(donorPhone) || phoneDigits.length < 7 || phoneDigits.length > 15)) return bad(res, 'Enter a valid phone number');
     if (!validImageData(imageData)) return bad(res, 'Image must be JPEG, PNG, or WebP under 1 MB');
     if (location && (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude) || Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180)) return bad(res, 'Location coordinates are invalid');
     const l = await FoodListing.create({
       title, description, category, quantity, unit, pickupAddress, expiresAt,
-      donorPhone: donorPhone?.trim(), showPhone: showPhone === true && Boolean(donorPhone), imageData, location,
+      donorPhone: donorPhone?.trim(), showPhone: Boolean(donorPhone), imageData, location,
       donor: req.user._id,
       history: [{ status: 'pending', by: req.user._id }],
     });

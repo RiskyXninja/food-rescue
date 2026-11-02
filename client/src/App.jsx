@@ -370,9 +370,9 @@ function DonorForm({ onDone }) {
         <input type="number" min="1" value={f.quantity} onChange={set('quantity')} required />
         <input placeholder="Pickup address" value={f.pickupAddress} onChange={set('pickupAddress')} required />
         <input type="datetime-local" value={f.expiresAt} onChange={set('expiresAt')} required />
-        <input type="tel" placeholder="Contact phone (optional)" value={f.donorPhone} onChange={set('donorPhone')} pattern="[+0-9 ().-]{7,24}" maxLength={24} />
+        <input type="tel" placeholder="Volunteer contact phone (optional)" value={f.donorPhone} onChange={set('donorPhone')} pattern="[+0-9 ().-]{7,24}" maxLength={24} />
       </div>
-      {f.donorPhone && <label className="consent-row"><input type="checkbox" checked={f.showPhone} onChange={(e) => setF({ ...f, showPhone: e.target.checked })} /> Let volunteers see this number to contact me about this pickup</label>}
+      <p className="phone-sharing-note">If you add a number, volunteers can see it to coordinate pickup.</p>
       <div className="listing-options">
         <label className="file-pick">Add food photo <input type="file" accept="image/*" capture="environment" onChange={chooseImage} /></label>
         {f.imageData && <img className="photo-preview" src={f.imageData} alt="Selected food" />}
@@ -506,9 +506,11 @@ function AccountSettings({ user, onUpdated }) {
   );
 }
 
-function AdminDashboard({ listings, stats, users, records, refresh, act, error, onLogout, user, onUpdated }) {
+function AdminDashboard({ listings, stats, users, records, refresh, cleanup, act, error, onLogout, user, onUpdated }) {
   const [section, setSection] = useState('overview');
   const [userBusy, setUserBusy] = useState('');
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState('');
 
   const counts = Object.fromEntries(
     (stats?.byStatus || []).map((item) => [item._id, item.count])
@@ -526,6 +528,21 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
       alert(e.message);
     } finally {
       setUserBusy('');
+    }
+  };
+
+  const cleanPastListings = async () => {
+    const confirmed = window.confirm('Delete all delivered, rejected, and cancelled listings? Active pickups and delivery history will remain.');
+    if (!confirmed) return;
+    setCleaning(true);
+    setCleanupMessage('');
+    try {
+      const { deletedCount } = await cleanup();
+      setCleanupMessage(`${deletedCount} past listing${deletedCount === 1 ? '' : 's'} deleted.`);
+    } catch (e) {
+      setCleanupMessage(e.message);
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -616,7 +633,11 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
                 <h2>Manage donations</h2>
                 <p>Review and manage food donation requests</p>
               </div>
+              <button className="danger-btn" onClick={cleanPastListings} disabled={cleaning}>
+                {cleaning ? 'Cleaning…' : 'Clean past listings'}
+              </button>
             </div>
+            {cleanupMessage && <p className="cleanup-message" role="status">{cleanupMessage}</p>}
             <DonationTable listings={listings} act={act} />
           </section>
         )}
@@ -814,6 +835,12 @@ export default function App() {
     }
   };
 
+  const cleanup = async () => {
+    const result = await api('/listings/cleanup', { method: 'DELETE' });
+    await loadAdmin();
+    return result;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -828,22 +855,26 @@ export default function App() {
 
   if (user.role === 'admin') {
     return (
-      <AdminDashboard
-        listings={listings}
-        stats={stats}
-        users={users}
-        records={records}
-        refresh={loadAdmin}
-        act={act}
-        error={err}
-        onLogout={logout}
-        user={user}
-        onUpdated={setUser}
-      />
+      <PullToRefresh refresh={loadAdmin}>
+        <AdminDashboard
+          listings={listings}
+          stats={stats}
+          users={users}
+          records={records}
+          refresh={loadAdmin}
+          cleanup={cleanup}
+          act={act}
+          error={err}
+          onLogout={logout}
+          user={user}
+          onUpdated={setUser}
+        />
+      </PullToRefresh>
     );
   }
 
   return (
+    <PullToRefresh refresh={load}>
     <div className="wrap member-layout">
       <header className="user-header">
         <div className="member-brand">
@@ -872,7 +903,7 @@ export default function App() {
             <p>{listing.pickupAddress} · expires {new Date(listing.expiresAt).toLocaleString()}</p>
             <p>Donor: {listing.donor?.name}{listing.volunteer && ` · Volunteer: ${listing.volunteer.name}`}</p>
             {listing.location?.latitude != null && <a href={`https://maps.google.com/?q=${listing.location.latitude},${listing.location.longitude}`} target="_blank" rel="noreferrer">Open pickup pin ↗</a>}
-            {listing.showPhone && listing.donorPhone && user.role === 'volunteer' && <p><a href={`tel:${listing.donorPhone}`}>Call donor · {listing.donorPhone}</a></p>}
+            {listing.donorPhone && user.role === 'volunteer' && <p className="donor-contact"><span>Donor contact</span><a href={`tel:${listing.donorPhone}`}>Call · {listing.donorPhone}</a></p>}
           </div>
           <div className="side">
             <StatusBadge status={listing.status} />
@@ -883,6 +914,77 @@ export default function App() {
 
       {!listings.length && <div className="empty-state"><span>✳</span><h3>The table is set.</h3><p>There’s nothing to pick up just yet. Check back soon for a fresh share.</p></div>}
       <button className="ghost logout-bottom" onClick={logout}>Log out</button>
+    </div>
+    </PullToRefresh>
+  );
+}
+
+function PullToRefresh({ refresh, children }) {
+  const [pull, setPull] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const start = useRef(null);
+  const pullValue = useRef(0);
+  const refreshingRef = useRef(false);
+  const holdTimer = useRef(null);
+
+  const runRefresh = async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    setPull(72);
+    const minimumAnimation = new Promise((resolve) => window.setTimeout(resolve, 700));
+    try {
+      await Promise.all([Promise.resolve(refresh()), minimumAnimation]);
+    } finally {
+      refreshingRef.current = false;
+      pullValue.current = 0;
+      setRefreshing(false);
+      setPull(0);
+    }
+  };
+
+  const onTouchStart = (event) => {
+    if (refreshingRef.current || window.scrollY > 2) return;
+    const touch = event.touches[0];
+    start.current = touch.clientY < 120 ? touch.clientY : null;
+  };
+
+  const onTouchMove = (event) => {
+    if (start.current == null || refreshingRef.current) return;
+    const distance = Math.max(0, event.touches[0].clientY - start.current);
+    pullValue.current = Math.min(88, distance * 0.62);
+    setPull(pullValue.current);
+    if (pullValue.current >= 58 && !holdTimer.current) {
+      holdTimer.current = window.setTimeout(() => {
+        holdTimer.current = null;
+        runRefresh();
+      }, 350);
+    }
+  };
+
+  const finishGesture = () => {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    if (pullValue.current >= 58) runRefresh();
+    else {
+      pullValue.current = 0;
+      setPull(0);
+    }
+    start.current = null;
+  };
+
+  useEffect(() => () => {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+  }, []);
+
+  const visible = pull > 8 || refreshing;
+  return (
+    <div className="pull-refresh-shell" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={finishGesture} onTouchCancel={finishGesture}>
+      <div className={`pull-refresh-indicator ${visible ? 'visible' : ''} ${refreshing ? 'refreshing' : ''}`} style={{ '--pull-distance': `${refreshing ? 72 : pull}px` }} role="status" aria-live="polite">
+        <span className="refresh-spinner" aria-hidden="true">↻</span>
+        <span>{refreshing ? 'Refreshing Food Rescue…' : 'Release to refresh'}</span>
+      </div>
+      {children}
     </div>
   );
 }
