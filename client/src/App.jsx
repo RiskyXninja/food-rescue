@@ -851,7 +851,11 @@ export default function App() {
   };
 
   if (!ready) return <div className="loading">Loading Food Rescue...</div>;
-  if (!user) return <AuthForm onAuth={setUser} />;
+  if (!user) return (
+    <PullToRefresh refresh={() => new Promise((resolve) => window.setTimeout(() => window.location.reload(), 450))}>
+      <AuthForm onAuth={setUser} />
+    </PullToRefresh>
+  );
 
   if (user.role === 'admin') {
     return (
@@ -922,10 +926,12 @@ export default function App() {
 function PullToRefresh({ refresh, children }) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const shell = useRef(null);
   const start = useRef(null);
   const pullValue = useRef(0);
   const refreshingRef = useRef(false);
-  const holdTimer = useRef(null);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   const runRefresh = async () => {
     if (refreshingRef.current) return;
@@ -934,7 +940,7 @@ function PullToRefresh({ refresh, children }) {
     setPull(72);
     const minimumAnimation = new Promise((resolve) => window.setTimeout(resolve, 700));
     try {
-      await Promise.all([Promise.resolve(refresh()), minimumAnimation]);
+      await Promise.all([Promise.resolve().then(() => refreshRef.current()), minimumAnimation]);
     } finally {
       refreshingRef.current = false;
       pullValue.current = 0;
@@ -943,46 +949,65 @@ function PullToRefresh({ refresh, children }) {
     }
   };
 
-  const onTouchStart = (event) => {
-    if (refreshingRef.current || window.scrollY > 2) return;
-    const touch = event.touches[0];
-    start.current = touch.clientY < 120 ? touch.clientY : null;
-  };
+  useEffect(() => {
+    const element = shell.current;
+    if (!element) return undefined;
 
-  const onTouchMove = (event) => {
-    if (start.current == null || refreshingRef.current) return;
-    const distance = Math.max(0, event.touches[0].clientY - start.current);
-    pullValue.current = Math.min(88, distance * 0.62);
-    setPull(pullValue.current);
-    if (pullValue.current >= 58 && !holdTimer.current) {
-      holdTimer.current = window.setTimeout(() => {
-        holdTimer.current = null;
-        runRefresh();
-      }, 350);
-    }
-  };
-
-  const finishGesture = () => {
-    if (holdTimer.current) window.clearTimeout(holdTimer.current);
-    holdTimer.current = null;
-    if (pullValue.current >= 58) runRefresh();
-    else {
+    const pageIsAtTop = () => {
+      const scrolling = document.scrollingElement;
+      return window.scrollY <= 1 && (!scrolling || scrolling.scrollTop <= 1) &&
+        document.documentElement.scrollTop <= 1 && document.body.scrollTop <= 1;
+    };
+    const onStart = (event) => {
+      if (refreshingRef.current || !pageIsAtTop() || event.touches.length !== 1) return;
+      start.current = event.touches[0].clientY;
+    };
+    const onMove = (event) => {
+      if (start.current == null || refreshingRef.current || event.touches.length !== 1) return;
+      const distance = event.touches[0].clientY - start.current;
+      if (distance < 0) {
+        start.current = null;
+        pullValue.current = 0;
+        setPull(0);
+        return;
+      }
+      if (distance > 6) event.preventDefault();
+      pullValue.current = Math.min(96, distance * 0.62);
+      setPull(pullValue.current);
+    };
+    const onEnd = () => {
+      if (start.current == null) return;
+      if (pullValue.current >= 58) runRefresh();
+      else {
+        pullValue.current = 0;
+        setPull(0);
+      }
+      start.current = null;
+    };
+    const onCancel = () => {
+      start.current = null;
       pullValue.current = 0;
       setPull(0);
-    }
-    start.current = null;
-  };
+    };
 
-  useEffect(() => () => {
-    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    element.addEventListener('touchstart', onStart, { passive: true });
+    element.addEventListener('touchmove', onMove, { passive: false });
+    element.addEventListener('touchend', onEnd, { passive: true });
+    element.addEventListener('touchcancel', onCancel, { passive: true });
+    return () => {
+      element.removeEventListener('touchstart', onStart);
+      element.removeEventListener('touchmove', onMove);
+      element.removeEventListener('touchend', onEnd);
+      element.removeEventListener('touchcancel', onCancel);
+    };
   }, []);
 
   const visible = pull > 8 || refreshing;
   return (
-    <div className="pull-refresh-shell" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={finishGesture} onTouchCancel={finishGesture}>
+    <div className="pull-refresh-shell" ref={shell}>
       <div className={`pull-refresh-indicator ${visible ? 'visible' : ''} ${refreshing ? 'refreshing' : ''}`} style={{ '--pull-distance': `${refreshing ? 72 : pull}px` }} role="status" aria-live="polite">
         <span className="refresh-spinner" aria-hidden="true">↻</span>
-        <span>{refreshing ? 'Refreshing Food Rescue…' : 'Release to refresh'}</span>
+        <span>{refreshing ? 'Refreshing Food Rescue…' : pull >= 58 ? 'Release to refresh' : 'Pull down to refresh'}</span>
       </div>
       {children}
     </div>
