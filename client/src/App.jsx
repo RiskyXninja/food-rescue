@@ -114,8 +114,23 @@ function AuthForm({ onAuth }) {
   }[mode];
 
   return (
-    <form className="card auth" onSubmit={submit}>
-      <h2>{title}</h2>
+    <main className="auth-screen">
+      <section className="auth-story">
+        <div className="auth-story-top"><span className="brand-mark">fr</span><span>Food Rescue <i>·</i> Good food, shared</span></div>
+        <div className="story-copy">
+          <span className="eyebrow">A little good goes a long way</span>
+          <h1>Full hearts.<br /><em>Empty plates.</em></h1>
+          <p>Good food deserves a second story. Help bring fresh meals to the people who need them most.</p>
+          <div className="story-proof"><span className="proof-icon">✳</span><div><strong>Every meal matters</strong><small>Donate · Collect · Deliver</small></div></div>
+        </div>
+        <div className="story-caption"><span>MADE FOR GOOD THINGS</span><span>01 — 03</span></div>
+      </section>
+      <section className="auth-column">
+        <form className="card auth" onSubmit={submit}>
+          <div className="auth-mobile-brand"><span className="brand-mark">fr</span><span>Food Rescue</span></div>
+          <span className="eyebrow">{mode === 'login' ? 'YOUR TABLE IS WAITING' : 'A BETTER KIND OF COMMUNITY'}</span>
+          <h2>{title}</h2>
+          <p className="auth-intro">{mode === 'login' ? 'Sign in to see the good you can do today.' : 'A few details and you’re on your way.'}</p>
 
       {(mode === 'login' || mode === 'register') && (
         <>
@@ -275,7 +290,10 @@ function AuthForm({ onAuth }) {
           Back to login
         </a>
       )}
-    </form>
+        </form>
+        <p className="auth-footnote">GOOD FOOD. GOOD PEOPLE. A BETTER DAY.</p>
+      </section>
+    </main>
   );
 }
 
@@ -466,7 +484,7 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
     <div className="admin-layout">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">FR</div>
+          <div className="brand-icon">fr</div>
           <div>
             <strong>Food Rescue</strong>
             <small>Management portal</small>
@@ -496,7 +514,7 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
         <header className="admin-header">
           <div>
             <h1>{navItems.find((item) => item[0] === section)?.[1]}</h1>
-            <p>Welcome to your Food Rescue management portal.</p>
+            <p>A little good goes a long way, {user.name?.split(' ')[0]}.</p>
           </div>
           <div className="header-actions">
   <button className="refresh-btn" onClick={refresh}>↻ Refresh</button>
@@ -769,14 +787,22 @@ export default function App() {
   }
 
   return (
-    <div className="wrap">
+    <div className="wrap member-layout">
       <header className="user-header">
-        <div>
-          <h1>Food Rescue</h1>
-          <p>Welcome, {user.name} · <b>{user.role}</b></p>
+        <div className="member-brand">
+          <span className="brand-mark">fr</span><div><h1>Food Rescue</h1>
+          <p>Welcome back, {user.name} <span className="role-chip">{user.role}</span></p></div>
         </div>
-        <button className="ghost" onClick={logout}>Log out</button>
+        <button className="ghost" onClick={logout}>↗ &nbsp;Log out</button>
       </header>
+
+      <section className="member-hero">
+        <div><span className="eyebrow">GOOD FOOD, GOING GOOD PLACES</span>
+          <h2>{user.role === 'donor' ? <>Share a little.<br /><em>Change a lot.</em></> : <>Your next good deed<br /><em>starts here.</em></>}</h2>
+          <p>{user.role === 'donor' ? 'Turn extra food into something meaningful. Your community is ready.' : 'Pick up where kindness left off. Every delivery makes a difference.'}</p>
+        </div><div className="hero-stamp"><span>✳</span><strong>GOOD<br />THINGS<br />HAPPEN</strong></div>
+      </section>
+      <div className="section-kicker"><span>THE COMMUNITY TABLE</span><span>FRESHLY SHARED ✳</span></div>
 
       {user.role === 'donor' && <DonorForm onDone={load} />}
       {err && <p className="err">{err}</p>}
@@ -795,7 +821,7 @@ export default function App() {
         </div>
       ))}
 
-      {!listings.length && <p className="muted">Nothing here yet.</p>}
+      {!listings.length && <div className="empty-state"><span>✳</span><h3>The table is set.</h3><p>There’s nothing to pick up just yet. Check back soon for a fresh share.</p></div>}
       <button className="ghost logout-bottom" onClick={logout}>Log out</button>
     </div>
   );
