@@ -2,51 +2,283 @@ import { useEffect, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { api } from './api.js';
 
+
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
-  const [f, setF] = useState({ name: '', email: '', password: '', role: 'donor' });
+  const [f, setF] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'donor',
+  });
+  const [otp, setOtp] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [err, setErr] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const set = (k) => (e) =>
+    setF({ ...f, [k]: e.target.value });
+
+  const changeMode = (nextMode) => {
+    setErr('');
+    setMessage('');
+    setMode(nextMode);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setErr('');
+    setMessage('');
+    setBusy(true);
+
     try {
-      const d = await api(`/auth/${mode}`, { method: 'POST', body: f });
-      localStorage.setItem('token', d.token);
-      onAuth(d.user);
+      if (mode === 'login' || mode === 'register') {
+        const d = await api(`/auth/${mode}`, {
+          method: 'POST',
+          body: {
+            ...f,
+            email: f.email.trim().toLowerCase(),
+          },
+        });
+
+        localStorage.setItem('token', d.token);
+        onAuth(d.user);
+      }
+
+      if (mode === 'forgot') {
+        const d = await api('/auth/forgot-password/request-otp', {
+          method: 'POST',
+          body: { email: f.email.trim().toLowerCase() },
+        });
+
+        setMessage(d.message);
+        setMode('verify');
+      }
+
+      if (mode === 'verify') {
+        const d = await api('/auth/forgot-password/verify-otp', {
+          method: 'POST',
+          body: {
+            email: f.email.trim().toLowerCase(),
+            otp,
+          },
+        });
+
+        setResetToken(d.resetToken);
+        setMessage('OTP verified successfully. Set your new password.');
+        setMode('reset');
+      }
+
+      if (mode === 'reset') {
+        if (newPassword !== confirmPassword) {
+          throw new Error('Passwords do not match.');
+        }
+
+        if (newPassword.length < 8) {
+          throw new Error('Password must be at least 8 characters.');
+        }
+
+        const d = await api('/auth/forgot-password/reset-password', {
+          method: 'POST',
+          body: {
+            email: f.email.trim().toLowerCase(),
+            resetToken,
+            newPassword,
+          },
+        });
+
+        setMessage(d.message);
+        setOtp('');
+        setResetToken('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setF({ ...f, password: '' });
+        setMode('login');
+      }
     } catch (x) {
       setErr(x.message);
+    } finally {
+      setBusy(false);
     }
   };
 
+  const title = {
+    login: 'Welcome back',
+    register: 'Create an account',
+    forgot: 'Forgot password?',
+    verify: 'Verify your email',
+    reset: 'Set a new password',
+  }[mode];
+
   return (
     <form className="card auth" onSubmit={submit}>
-      <h2>{mode === 'login' ? 'Welcome back' : 'Create an account'}</h2>
-      {mode === 'register' && (
-        <input placeholder="Name" value={f.name} onChange={set('name')} required />
+      <h2>{title}</h2>
+
+      {(mode === 'login' || mode === 'register') && (
+        <>
+          {mode === 'register' && (
+            <input
+              placeholder="Name"
+              value={f.name}
+              onChange={set('name')}
+              required
+            />
+          )}
+
+          <input
+            type="email"
+            placeholder="Email"
+            value={f.email}
+            onChange={set('email')}
+            autoComplete="email"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={f.password}
+            onChange={set('password')}
+            autoComplete={
+              mode === 'login' ? 'current-password' : 'new-password'
+            }
+            required
+          />
+
+          {mode === 'register' && (
+            <select value={f.role} onChange={set('role')}>
+              <option value="donor">Donor</option>
+              <option value="volunteer">Volunteer</option>
+            </select>
+          )}
+        </>
       )}
-      <input type="email" placeholder="Email" value={f.email} onChange={set('email')} required />
-      <input type="password" placeholder="Password" value={f.password} onChange={set('password')} required />
-      {mode === 'register' && (
-        <select value={f.role} onChange={set('role')}>
-          <option value="donor">Donor</option>
-          <option value="volunteer">Volunteer</option>
-        </select>
+
+      {mode === 'forgot' && (
+        <>
+          <p>Enter your registered email address to receive a reset code.</p>
+          <input
+            type="email"
+            placeholder="Registered email"
+            value={f.email}
+            onChange={set('email')}
+            autoComplete="email"
+            required
+          />
+        </>
       )}
+
+      {mode === 'verify' && (
+        <>
+          <p>Enter the 6-digit OTP sent to your email address.</p>
+          <input
+            type="text"
+            placeholder="6-digit OTP"
+            value={otp}
+            onChange={(e) =>
+              setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+            }
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            required
+          />
+        </>
+      )}
+
+      {mode === 'reset' && (
+        <>
+          <p>Choose a new password for your account.</p>
+          <input
+            type="password"
+            placeholder="New password (minimum 8 characters)"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            minLength={8}
+            autoComplete="new-password"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            minLength={8}
+            autoComplete="new-password"
+            required
+          />
+        </>
+      )}
+
       {err && <p className="err">{err}</p>}
-      <button>{mode === 'login' ? 'Log in' : 'Create account'}</button>
-      <a href="#" onClick={(e) => {
-        e.preventDefault();
-        setErr('');
-        setMode(mode === 'login' ? 'register' : 'login');
-      }}>
-        {mode === 'login' ? 'Need an account? Register' : 'Already registered? Log in'}
-      </a>
+      {message && <p className="success-message">{message}</p>}
+
+      <button type="submit" disabled={busy}>
+        {busy
+          ? 'Please wait...'
+          : {
+              login: 'Log in',
+              register: 'Create account',
+              forgot: 'Send OTP',
+              verify: 'Verify OTP',
+              reset: 'Reset Password',
+            }[mode]}
+      </button>
+
+      {mode === 'login' && (
+        <>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              changeMode('forgot');
+            }}
+          >
+            Forgot Password?
+          </a>
+
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              changeMode('register');
+            }}
+          >
+            Need an account? Register
+          </a>
+        </>
+      )}
+
+      {mode === 'register' && (
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            changeMode('login');
+          }}
+        >
+          Already registered? Log in
+        </a>
+      )}
+
+      {(mode === 'forgot' || mode === 'verify' || mode === 'reset') && (
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            changeMode('login');
+          }}
+        >
+          Back to login
+        </a>
+      )}
     </form>
   );
 }
+
 
 function DonorForm({ onDone }) {
   const empty = { title: '', quantity: 1, pickupAddress: '', expiresAt: '' };
