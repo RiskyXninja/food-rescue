@@ -237,11 +237,11 @@ input:focus, select:focus {
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  display: block;
-  object-fit: cover;
-  padding: 2px;
-  background: #fff;
-  border: 1px solid #ffffff80;
+  background: #55a875;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
 }
 
 .brand strong, .brand small {
@@ -629,7 +629,7 @@ input:focus, select:focus { border-color: var(--tomato); box-shadow: 0 0 0 4px r
 .auth-story::after { content: ""; position: absolute; z-index: -1; width: 360px; height: 360px; right: -160px; bottom: -180px; border: 1px solid #ffffff35; border-radius: 50%; box-shadow: 0 0 0 32px #ffffff0d, 0 0 0 66px #ffffff0a; }
 .auth-story-top, .auth-mobile-brand { display: flex; align-items: center; gap: 12px; letter-spacing: .02em; font-size: 13px; font-weight: 600; }
 .auth-story-top i { color: #ff8c6e; font-style: normal; padding: 0 3px; }
-.brand-mark { width: 42px; height: 42px; flex: 0 0 42px; display: block; object-fit: cover; padding: 2px; border: 1px solid #ffffff80; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px #db392747; }
+.brand-mark { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 14px; color: white; background: linear-gradient(145deg, #ff654a, #d73122); font-family: Georgia, serif; font-size: 22px; font-weight: 800; letter-spacing: -3px; box-shadow: 0 8px 24px #db392747; }
 .story-copy { max-width: 640px; margin-top: auto; margin-bottom: auto; padding: 70px 0 40px; animation: rise-in .8s .12s both; }
 .eyebrow { display: block; color: var(--tomato); font-size: 10px; letter-spacing: .19em; line-height: 1.5; font-weight: 800; }
 .auth-story .eyebrow, .member-hero .eyebrow { color: #ffb49e; }
@@ -658,7 +658,7 @@ input:focus, select:focus { border-color: var(--tomato); box-shadow: 0 0 0 4px r
 .admin-layout { min-height: 100vh; background: radial-gradient(ellipse at 85% 0%, #fff8f1, transparent 45%), var(--cream); }
 .sidebar { position: sticky; top: 0; height: 100vh; width: 255px; padding: 26px 17px; color: #fff8f1; background: radial-gradient(ellipse at 90% 0%, #4b241e, transparent 46%), #1c1917; border-right: 1px solid #ffffff12; }
 .brand { padding-bottom: 38px; }
-.brand-icon { width: 44px; height: 44px; border-radius: 15px; padding: 2px; object-fit: cover; background: #fff; border: 1px solid #ffffff80; box-shadow: 0 8px 24px #db392747; }
+.brand-icon { width: 44px; height: 44px; border-radius: 15px; background: linear-gradient(145deg, #ff654a, #d73122); box-shadow: 0 8px 24px #db392747; font-family: Georgia, serif; letter-spacing: -2px; }
 .brand small, .nav-heading { color: #cbbdb0; }
 .nav-button { border: 1px solid transparent; color: #ddd4cd; border-radius: 12px; transition: background .22s, transform .22s; }
 .nav-button:hover, .nav-button.selected { color: #fff; background: linear-gradient(90deg, #de432f44, #de432f16); border-color: #f179602b; transform: translateX(2px); }

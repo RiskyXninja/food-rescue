@@ -2,10 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { api } from './api.js';
 
-function LogoMark({ className = '' }) {
-  return <img className={className} src="/food-rescue-logo.png" alt="Food Rescue" />;
-}
-
 
 function AuthForm({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -120,7 +116,7 @@ function AuthForm({ onAuth }) {
   return (
     <main className="auth-screen">
       <section className="auth-story">
-        <div className="auth-story-top"><LogoMark className="brand-mark" /><span>Food Rescue <i>·</i> Good food, shared</span></div>
+        <div className="auth-story-top"><span className="brand-mark">fr</span><span>Food Rescue <i>·</i> Good food, shared</span></div>
         <div className="story-copy">
           <span className="eyebrow">A little good goes a long way</span>
           <h1>Full hearts.<br /><em>Empty plates.</em></h1>
@@ -131,8 +127,8 @@ function AuthForm({ onAuth }) {
       </section>
       <section className="auth-column">
         <form className="card auth" onSubmit={submit}>
-          <div className="auth-mobile-brand"><LogoMark className="brand-mark" /><span>Food Rescue</span></div>
-          <span className="eyebrow">{mode === 'login' ? 'YOUR TABLE IS WAITING' : 'A BETTER KIND OF COMMUNITY'}</span>
+          <div className="auth-mobile-brand"><span className="brand-mark">fr</span><span>Food Rescue</span></div>
+          {mode !== 'login' && <span className="eyebrow">A BETTER KIND OF COMMUNITY</span>}
           <h2>{title}</h2>
           <p className="auth-intro">{mode === 'login' ? 'Sign in to see the good you can do today.' : 'A few details and you’re on your way.'}</p>
 
@@ -488,7 +484,7 @@ function AdminDashboard({ listings, stats, users, records, refresh, act, error, 
     <div className="admin-layout">
       <aside className="sidebar">
         <div className="brand">
-          <LogoMark className="brand-icon" />
+          <div className="brand-icon">fr</div>
           <div>
             <strong>Food Rescue</strong>
             <small>Management portal</small>
@@ -794,7 +790,7 @@ export default function App() {
     <div className="wrap member-layout">
       <header className="user-header">
         <div className="member-brand">
-          <LogoMark className="brand-mark" /><div><h1>Food Rescue</h1>
+          <span className="brand-mark">fr</span><div><h1>Food Rescue</h1>
           <p>Welcome back, {user.name} <span className="role-chip">{user.role}</span></p></div>
         </div>
         <button className="ghost" onClick={logout}>↗ &nbsp;Log out</button>
