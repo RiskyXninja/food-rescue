@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Food Rescue</string>
+    <string name="title_activity_main">Food Rescue</string>
+    <string name="package_name">com.foodrescue.app</string>
+    <string name="custom_url_scheme">com.foodrescue.app</string>
+</resources>

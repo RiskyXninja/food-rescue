@@ -299,9 +299,10 @@ function AuthForm({ onAuth }) {
 
 
 function DonorForm({ onDone }) {
-  const empty = { title: '', quantity: 1, pickupAddress: '', expiresAt: '' };
+  const empty = { title: '', quantity: 1, pickupAddress: '', expiresAt: '', donorPhone: '', showPhone: false, imageData: '', location: null };
   const [f, setF] = useState(empty);
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -309,12 +310,56 @@ function DonorForm({ onDone }) {
     e.preventDefault();
     setErr('');
     try {
-      await api('/listings', { method: 'POST', body: f });
+      setBusy(true);
+      const hasPin = f.location?.latitude !== '' && f.location?.longitude !== '' && Number.isFinite(Number(f.location?.latitude)) && Number.isFinite(Number(f.location?.longitude));
+      await api('/listings', { method: 'POST', body: { ...f, location: hasPin ? { latitude: Number(f.location.latitude), longitude: Number(f.location.longitude) } : null } });
       setF(empty);
+      setBusy(false);
       onDone();
     } catch (x) {
+      setBusy(false);
       setErr(x.message);
     }
+  };
+
+  const chooseImage = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErr('Choose an image file.'); return; }
+    if (file.size > 12 * 1024 * 1024) { setErr('Choose an image smaller than 12 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 1200 / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        let quality = 0.82;
+        let data = canvas.toDataURL('image/jpeg', quality);
+        while (data.length > 1300000 && quality > 0.4) {
+          quality -= 0.1;
+          data = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (data.length > 1300000) { setErr('This image could not be compressed enough. Choose a smaller photo.'); return; }
+        setF((prev) => ({ ...prev, imageData: data }));
+        setErr('');
+      };
+      image.onerror = () => setErr('Could not read that image.');
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const shareLocation = () => {
+    setErr('');
+    if (!navigator.geolocation) { setErr('Location is unavailable here. Enter coordinates manually.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => setF((prev) => ({ ...prev, location: { latitude: Number(coords.latitude.toFixed(6)), longitude: Number(coords.longitude.toFixed(6)) } })),
+      () => setErr('Location permission was not granted. You can enter coordinates manually.'),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
@@ -325,9 +370,21 @@ function DonorForm({ onDone }) {
         <input type="number" min="1" value={f.quantity} onChange={set('quantity')} required />
         <input placeholder="Pickup address" value={f.pickupAddress} onChange={set('pickupAddress')} required />
         <input type="datetime-local" value={f.expiresAt} onChange={set('expiresAt')} required />
+        <input type="tel" placeholder="Contact phone (optional)" value={f.donorPhone} onChange={set('donorPhone')} pattern="[+0-9 ().-]{7,24}" maxLength={24} />
+      </div>
+      {f.donorPhone && <label className="consent-row"><input type="checkbox" checked={f.showPhone} onChange={(e) => setF({ ...f, showPhone: e.target.checked })} /> Let volunteers see this number to contact me about this pickup</label>}
+      <div className="listing-options">
+        <label className="file-pick">Add food photo <input type="file" accept="image/*" capture="environment" onChange={chooseImage} /></label>
+        {f.imageData && <img className="photo-preview" src={f.imageData} alt="Selected food" />}
+        <button type="button" className="ghost" onClick={shareLocation}>Share current location</button>
+        {f.location && <span className="location-note">Pin added · {f.location.latitude}, {f.location.longitude}</span>}
+      </div>
+      <div className="form-grid coordinates">
+        <input aria-label="Latitude" type="number" min="-90" max="90" step="any" placeholder="Latitude (optional)" value={f.location?.latitude ?? ''} onChange={(e) => setF({ ...f, location: { ...(f.location || {}), latitude: e.target.value === '' ? '' : Number(e.target.value) } })} />
+        <input aria-label="Longitude" type="number" min="-180" max="180" step="any" placeholder="Longitude (optional)" value={f.location?.longitude ?? ''} onChange={(e) => setF({ ...f, location: { ...(f.location || {}), longitude: e.target.value === '' ? '' : Number(e.target.value) } })} />
       </div>
       {err && <p className="err">{err}</p>}
-      <button>Submit donation</button>
+      <button disabled={busy}>{busy ? 'Submitting…' : 'Submit donation'}</button>
     </form>
   );
 }
@@ -810,9 +867,12 @@ export default function App() {
       {listings.map((listing) => (
         <div className="card item" key={listing._id}>
           <div>
+            {listing.imageData && <img className="listing-photo" src={listing.imageData} alt={`${listing.title} food`} />}
             <h3>{listing.title} <small>× {listing.quantity} {listing.unit}</small></h3>
             <p>{listing.pickupAddress} · expires {new Date(listing.expiresAt).toLocaleString()}</p>
             <p>Donor: {listing.donor?.name}{listing.volunteer && ` · Volunteer: ${listing.volunteer.name}`}</p>
+            {listing.location?.latitude != null && <a href={`https://maps.google.com/?q=${listing.location.latitude},${listing.location.longitude}`} target="_blank" rel="noreferrer">Open pickup pin ↗</a>}
+            {listing.showPhone && listing.donorPhone && user.role === 'volunteer' && <p><a href={`tel:${listing.donorPhone}`}>Call donor · {listing.donorPhone}</a></p>}
           </div>
           <div className="side">
             <StatusBadge status={listing.status} />

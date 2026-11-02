@@ -27,8 +27,7 @@ app.use(cors({
     return callback(new Error('Not allowed by CORS'));
   },
 }));
-app.use(express.json());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);

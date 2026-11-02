@@ -24,6 +24,13 @@ const listingSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 1 },
     unit: { type: String, default: 'servings' },
     pickupAddress: { type: String, required: true },
+    donorPhone: { type: String, trim: true, maxlength: 24 },
+    showPhone: { type: Boolean, default: false },
+    imageData: { type: String, maxlength: 1400000 },
+    location: {
+      latitude: { type: Number, min: -90, max: 90 },
+      longitude: { type: Number, min: -180, max: 180 },
+    },
     expiresAt: { type: Date, required: true },
     status: { type: String, enum: STATUSES, default: 'pending', index: true },
     history: [historySchema],
