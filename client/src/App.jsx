@@ -1,0 +1,479 @@
+import { useEffect, useState, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import { api } from './api.js';
+
+function AuthForm({ onAuth }) {
+  const [mode, setMode] = useState('login');
+  const [f, setF] = useState({ name: '', email: '', password: '', role: 'donor' });
+  const [err, setErr] = useState('');
+
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    try {
+      const d = await api(`/auth/${mode}`, { method: 'POST', body: f });
+      localStorage.setItem('token', d.token);
+      onAuth(d.user);
+    } catch (x) {
+      setErr(x.message);
+    }
+  };
+
+  return (
+    <form className="card auth" onSubmit={submit}>
+      <h2>{mode === 'login' ? 'Welcome back' : 'Create an account'}</h2>
+      {mode === 'register' && (
+        <input placeholder="Name" value={f.name} onChange={set('name')} required />
+      )}
+      <input type="email" placeholder="Email" value={f.email} onChange={set('email')} required />
+      <input type="password" placeholder="Password" value={f.password} onChange={set('password')} required />
+      {mode === 'register' && (
+        <select value={f.role} onChange={set('role')}>
+          <option value="donor">Donor</option>
+          <option value="volunteer">Volunteer</option>
+        </select>
+      )}
+      {err && <p className="err">{err}</p>}
+      <button>{mode === 'login' ? 'Log in' : 'Create account'}</button>
+      <a href="#" onClick={(e) => {
+        e.preventDefault();
+        setErr('');
+        setMode(mode === 'login' ? 'register' : 'login');
+      }}>
+        {mode === 'login' ? 'Need an account? Register' : 'Already registered? Log in'}
+      </a>
+    </form>
+  );
+}
+
+function DonorForm({ onDone }) {
+  const empty = { title: '', quantity: 1, pickupAddress: '', expiresAt: '' };
+  const [f, setF] = useState(empty);
+  const [err, setErr] = useState('');
+
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    try {
+      await api('/listings', { method: 'POST', body: f });
+      setF(empty);
+      onDone();
+    } catch (x) {
+      setErr(x.message);
+    }
+  };
+
+  return (
+    <form className="card donor-form" onSubmit={submit}>
+      <h2>Donate surplus food</h2>
+      <div className="form-grid">
+        <input placeholder="Food item" value={f.title} onChange={set('title')} required />
+        <input type="number" min="1" value={f.quantity} onChange={set('quantity')} required />
+        <input placeholder="Pickup address" value={f.pickupAddress} onChange={set('pickupAddress')} required />
+        <input type="datetime-local" value={f.expiresAt} onChange={set('expiresAt')} required />
+      </div>
+      {err && <p className="err">{err}</p>}
+      <button>Submit donation</button>
+    </form>
+  );
+}
+
+function Actions({ listing, role, act }) {
+  if (role === 'admin' && listing.status === 'pending') {
+    return (
+      <div className="action-buttons">
+        <button onClick={() => act(listing._id, 'review', { decision: 'approve' })}>Approve</button>
+        <button className="danger-btn" onClick={() => act(listing._id, 'review', { decision: 'reject' })}>Reject</button>
+      </div>
+    );
+  }
+
+  if (role === 'donor' && listing.status === 'pending') {
+    return <button className="danger-btn" onClick={() => act(listing._id, 'cancel')}>Cancel</button>;
+  }
+
+  if (role === 'volunteer') {
+    if (listing.status === 'approved') {
+      return <button onClick={() => act(listing._id, 'claim')}>Claim</button>;
+    }
+    if (listing.status === 'claimed') {
+      return <button onClick={() => act(listing._id, 'status', { status: 'picked_up' })}>Mark picked up</button>;
+    }
+    if (listing.status === 'picked_up') {
+      return <button onClick={() => act(listing._id, 'status', { status: 'delivered' })}>Mark delivered</button>;
+    }
+  }
+
+  return null;
+}
+
+function StatusBadge({ status }) {
+  return <span className={`badge ${status}`}>{(status || 'unknown').replace('_', ' ')}</span>;
+}
+
+function AdminDashboard({ listings, stats, users, records, refresh, act, error, onLogout }) {
+  const [section, setSection] = useState('overview');
+  const [userBusy, setUserBusy] = useState('');
+
+  const counts = Object.fromEntries(
+    (stats?.byStatus || []).map((item) => [item._id, item.count])
+  );
+
+  const toggleUser = async (user) => {
+    setUserBusy(user._id);
+    try {
+      await api(`/admin/users/${user._id}/active`, {
+        method: 'PATCH',
+        body: { isActive: user.isActive === false }
+      });
+      await refresh();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setUserBusy('');
+    }
+  };
+
+  const navItems = [
+    ['overview', 'Overview', '▦'],
+    ['donations', 'Donations', '♧'],
+    ['users', 'Users', '♙'],
+    ['history', 'Delivery History', '◷']
+  ];
+
+  return (
+    <div className="admin-layout">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-icon">FR</div>
+          <div>
+            <strong>Food Rescue</strong>
+            <small>Management portal</small>
+          </div>
+        </div>
+
+        <p className="nav-heading">MAIN MENU</p>
+        <nav>
+          {navItems.map(([id, label, icon]) => (
+            <button
+              key={id}
+              className={`nav-button ${section === id ? 'selected' : ''}`}
+              onClick={() => setSection(id)}
+            >
+              <span>{icon}</span>{label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <span className="admin-dot" />
+          Administrator
+        </div>
+      </aside>
+
+      <main className="admin-main">
+        <header className="admin-header">
+          <div>
+            <h1>{navItems.find((item) => item[0] === section)?.[1]}</h1>
+            <p>Welcome to your Food Rescue management portal.</p>
+          </div>
+          <div className="header-actions">
+  <button className="refresh-btn" onClick={refresh}>↻ Refresh</button>
+  <button className="ghost" onClick={onLogout}>Log out</button>
+</div>
+        </header>
+
+        {error && <p className="err card">{error}</p>}
+
+        {section === 'overview' && (
+          <>
+            <div className="stats-grid">
+              <StatCard label="Total donations" value={listings.length} icon="♧" />
+              <StatCard label="Pending approval" value={counts.pending || 0} icon="◷" />
+              <StatCard label="Approved" value={counts.approved || 0} icon="✓" />
+              <StatCard label="Delivered" value={counts.delivered || 0} icon="⌂" />
+            </div>
+
+            <div className="stats-grid secondary-stats">
+              <StatCard label="Registered users" value={users.length} icon="♙" />
+              <StatCard label="Food quantity delivered" value={stats?.delivered?.total || 0} icon="▤" />
+              <StatCard label="Completed deliveries" value={stats?.delivered?.count || 0} icon="✓" />
+            </div>
+
+            <section className="panel">
+              <div className="panel-heading">
+                <div>
+                  <h2>Recent donations</h2>
+                  <p>Latest food listings submitted by donors</p>
+                </div>
+                <button className="text-btn" onClick={() => setSection('donations')}>View all</button>
+              </div>
+              <DonationTable listings={listings.slice(0, 5)} act={act} />
+            </section>
+          </>
+        )}
+
+        {section === 'donations' && (
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Manage donations</h2>
+                <p>Review and manage food donation requests</p>
+              </div>
+            </div>
+            <DonationTable listings={listings} act={act} />
+          </section>
+        )}
+
+        {section === 'users' && (
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Registered users</h2>
+                <p>Manage donor and volunteer accounts</p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Name</th><th>Email</th><th>Role</th><th>Account status</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u._id}>
+                      <td><strong>{u.name}</strong></td>
+                      <td>{u.email}</td>
+                      <td><span className="role-label">{u.role}</span></td>
+                      <td>
+                        <StatusBadge status={u.isActive === false ? 'inactive' : 'active'} />
+                      </td>
+                      <td>
+                        {u.role !== 'admin' ? (
+                          <button
+                            className={u.isActive === false ? '' : 'danger-btn'}
+                            disabled={userBusy === u._id}
+                            onClick={() => toggleUser(u)}
+                          >
+                            {userBusy === u._id ? 'Please wait...' : u.isActive === false ? 'Activate' : 'Deactivate'}
+                          </button>
+                        ) : <span className="muted">Protected</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {!users.length && <tr><td colSpan="5" className="empty-cell">No users found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {section === 'history' && (
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Completed deliveries</h2>
+                <p>Records of food donations successfully delivered</p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Food listing</th><th>Quantity</th><th>Donor</th><th>Volunteer</th><th>Delivered on</th></tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr key={record._id}>
+                      <td><strong>{record.listing?.title || 'Food donation'}</strong></td>
+                      <td>{record.quantity}</td>
+                      <td>{record.donor?.name || '—'}</td>
+                      <td>{record.volunteer?.name || '—'}</td>
+                      <td>{record.deliveredAt ? new Date(record.deliveredAt).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}
+                  {!records.length && <tr><td colSpan="5" className="empty-cell">No completed deliveries yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-icon">{icon}</div>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+      </div>
+    </div>
+  );
+}
+
+function DonationTable({ listings, act }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Food item</th><th>Quantity</th><th>Donor</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          {listings.map((listing) => (
+            <tr key={listing._id}>
+              <td>
+                <strong>{listing.title}</strong>
+                <small className="table-subtitle">{listing.pickupAddress}</small>
+              </td>
+              <td>{listing.quantity} {listing.unit || ''}</td>
+              <td>{listing.donor?.name || '—'}</td>
+              <td><StatusBadge status={listing.status} /></td>
+              <td><Actions listing={listing} role="admin" act={act} /></td>
+            </tr>
+          ))}
+          {!listings.length && <tr><td colSpan="5" className="empty-cell">No food donations found.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [listings, setListings] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!localStorage.getItem('token')) {
+      setReady(true);
+      return;
+    }
+    api('/auth/me')
+      .then((d) => setUser(d.user))
+      .catch(() => localStorage.removeItem('token'))
+      .finally(() => setReady(true));
+  }, []);
+
+  const load = useCallback(async () => {
+    setErr('');
+    try {
+      const data = await api('/listings');
+      setListings(data);
+    } catch (e) {
+      setErr(e.message);
+    }
+  }, []);
+
+  const loadAdmin = useCallback(async () => {
+    setErr('');
+    try {
+      const [statsData, usersData, recordsData, listingsData] = await Promise.all([
+        api('/admin/stats'),
+        api('/admin/users'),
+        api('/admin/records'),
+        api('/listings')
+      ]);
+      setStats(statsData);
+      setUsers(usersData);
+      setRecords(recordsData);
+      setListings(listingsData);
+    } catch (e) {
+      setErr(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    if (user.role === 'admin') loadAdmin();
+    else load();
+
+    const socket = io(import.meta.env.VITE_API_URL || undefined);
+    socket.on('listing:updated', () => {
+      if (user.role === 'admin') loadAdmin();
+      else load();
+    });
+
+    return () => socket.disconnect();
+  }, [user, load, loadAdmin]);
+
+  const act = async (id, action, body) => {
+    try {
+      setErr('');
+      await api(`/listings/${id}/${action}`, { method: 'PATCH', body });
+      if (user?.role === 'admin') await loadAdmin();
+      else await load();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setListings([]);
+    setStats(null);
+    setUsers([]);
+    setRecords([]);
+  };
+
+  if (!ready) return <div className="loading">Loading Food Rescue...</div>;
+  if (!user) return <AuthForm onAuth={setUser} />;
+
+  if (user.role === 'admin') {
+    return (
+      <AdminDashboard
+        listings={listings}
+        stats={stats}
+        users={users}
+        records={records}
+        refresh={loadAdmin}
+        act={act}
+        error={err}
+        onLogout={logout}
+      />
+    );
+  }
+
+  return (
+    <div className="wrap">
+      <header className="user-header">
+        <div>
+          <h1>Food Rescue</h1>
+          <p>Welcome, {user.name} · <b>{user.role}</b></p>
+        </div>
+        <button className="ghost" onClick={logout}>Log out</button>
+      </header>
+
+      {user.role === 'donor' && <DonorForm onDone={load} />}
+      {err && <p className="err">{err}</p>}
+
+      {listings.map((listing) => (
+        <div className="card item" key={listing._id}>
+          <div>
+            <h3>{listing.title} <small>× {listing.quantity} {listing.unit}</small></h3>
+            <p>{listing.pickupAddress} · expires {new Date(listing.expiresAt).toLocaleString()}</p>
+            <p>Donor: {listing.donor?.name}{listing.volunteer && ` · Volunteer: ${listing.volunteer.name}`}</p>
+          </div>
+          <div className="side">
+            <StatusBadge status={listing.status} />
+            <Actions listing={listing} role={user.role} act={act} />
+          </div>
+        </div>
+      ))}
+
+      {!listings.length && <p className="muted">Nothing here yet.</p>}
+      <button className="ghost logout-bottom" onClick={logout}>Log out</button>
+    </div>
+  );
+}
